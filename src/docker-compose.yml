@@ -1,0 +1,6 @@
+services:
+  myapp.api:
+    image: ${DOCKER_REGISTRY-}myappapi
+    build:
+      context: .
+      dockerfile: API/Dockerfile
