@@ -1,29 +1,36 @@
-# Stage 1 — build
-FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
+# Stage 1 â€” Build stage
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
-# copy csproj(s) first for better cache usage (adjust path if needed)
-COPY ["MyBackend.Api/MyBackend.Api.csproj", "API/"]
+# Copy only csproj files first (to cache restore step)
+COPY ["API/MyApp.API.csproj", "API/"]
+COPY ["Application/MyApp.Application.csproj", "Application/"]
+COPY ["Domain/MyApp.Domain.csproj", "Domain/"]
+COPY ["Infrastructure/MyApp.Infrastructure.csproj", "Infrastructure/"]
 
-RUN dotnet restore "MyBackend.Api/MyBackend.Api.csproj"
+# Restore all NuGet dependencies
+RUN dotnet restore "API/MyApp.API.csproj"
 
-# copy rest
+# Copy the rest of the source code
 COPY . .
-WORKDIR /src/MyBackend.Api
-RUN dotnet publish
 
-# Stage 2 — runtime
-FROM mcr.microsoft.com/dotnet/aspnet:7.0 AS runtime
+# Build and publish
+WORKDIR "/src/API"
+RUN dotnet publish "MyApp.API.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+# Stage 2 â€” Runtime
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
 WORKDIR /app
 
-# create non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-USER appuser
+# Create non-root user (security)
+# RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# USER appuser
 
-COPY --from=build /app/publish ./
+# Copy published output from build stage
+COPY --from=build /app/publish .
 
+# Configure ports
 ENV ASPNETCORE_URLS=http://+:5000
 EXPOSE 5000
 
-ENTRYPOINT ["dotnet", "MyBackend.Api.dll"]
-
+ENTRYPOINT ["dotnet", "MyApp.API.dll"]

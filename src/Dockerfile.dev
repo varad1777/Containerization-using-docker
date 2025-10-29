@@ -1,0 +1,24 @@
+# src/Dockerfile.dev
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS dev
+WORKDIR /workspace
+
+# Copy csproj files first for cache-friendly restore (optional)
+COPY ["API/MyApp.API.csproj", "API/"]
+COPY ["Application/MyApp.Application.csproj", "Application/"]
+COPY ["Domain/MyApp.Domain.csproj", "Domain/"]
+COPY ["Infrastructure/MyApp.Infrastructure.csproj", "Infrastructure/"]
+
+RUN dotnet restore "API/MyApp.API.csproj"
+
+# Copy everything (the volume at runtime will override files for rapid dev)
+COPY . .
+
+WORKDIR /workspace/API
+
+ENV ASPNETCORE_ENVIRONMENT=Development
+ENV ASPNETCORE_URLS=http://+:5000
+
+EXPOSE 5000
+
+# Use dotnet watch for hot-reload
+CMD ["dotnet", "watch", "run", "--no-launch-profile", "--urls", "http://0.0.0.0:5000"]

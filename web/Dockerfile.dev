@@ -1,0 +1,22 @@
+# web/Dockerfile
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files and install (keeps node_modules in image)
+COPY package*.json ./
+RUN npm ci --no-audit --no-fund
+
+# Copy app source (will be overwritten by bind mount in dev compose)
+COPY . .
+
+# Make Vite env variable available at runtime as well
+# You can override this via docker-compose environment section
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:5000/api}
+
+EXPOSE 3000
+
+# Start Vite dev server and bind to 0.0.0.0 so host can access it
+CMD ["sh", "-c", "npm run dev -- --host 0.0.0.0 --port 3000"]
+ 

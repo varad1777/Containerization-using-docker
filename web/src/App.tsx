@@ -4,7 +4,7 @@ import { Toaster } from 'react-hot-toast'
 
 import Index from "@/Pages/Index.jsx"
 import Auth from "@/Pages/Auth"
-import NotFoundPage from "@/Pages/PageNotFound"
+import NotFoundPage from "./Pages/PageNotFound.jsx"
 import SignalList from './Pages/SignalList'
 import { Header } from './components/Header'
 import Varad from './Pages/Varad'

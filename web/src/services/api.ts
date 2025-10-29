@@ -1,8 +1,9 @@
 import axios from "axios";
 
-
+const RAW_BASE = (import.meta.env?.VITE_API_BASE_URL as string) || "http://localhost:5000/api";
+const API_BASE_URL = RAW_BASE.replace(/\/$/, "");
 // API base URL
-const API_BASE_URL = "https://localhost:7066/api";
+// const API_BASE_URL = "https://localhost:7066/api";
 
 // Create Axios instance
 const api = axios.create({
@@ -53,6 +54,8 @@ api.interceptors.response.use(
 // Helper function to handle API calls
 const handleRequest = async (request: Promise<any>) => {
   try {
+
+    console.log(API_BASE_URL)
     const { data, status } = await request;
     return { success: true, data, error: null, statusCode: status };
   } catch (err: any) {

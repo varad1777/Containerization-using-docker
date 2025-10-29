@@ -58,7 +58,7 @@ export const RTC_API = (jwtToken?: string) => {
   // Mark all notifications as read
   const markAllRead = async () => {
     try {
-      await axios.put("https://localhost:7066/api/notifications/mark-all-read", {},
+      await axios.put("http://localhost:5000/api/notifications/mark-all-read", {},
         {
           withCredentials: true,
           headers: { "Content-Type": "application/json" }
@@ -72,7 +72,7 @@ export const RTC_API = (jwtToken?: string) => {
   // Mark a single notification as read
   const markAsRead = async (id: string) => {
     try {
-      await axios.put(`https://localhost:7066/api/notifications/mark-read/${id}`, {}, {
+      await axios.put(`http://localhost:5000/api/notifications/mark-read/${id}`, {}, {
         withCredentials: true,
         headers: { "Content-Type": "application/json" }
       });
@@ -87,7 +87,7 @@ export const RTC_API = (jwtToken?: string) => {
 
   useEffect(() => {
     // Fetch existing notifications on login
-    axios.get("https://localhost:7066/api/notifications", {
+    axios.get("http://localhost:5000/api/notifications", {
       withCredentials: true
     })
       .then(res => setNotifications(res.data))
@@ -95,7 +95,7 @@ export const RTC_API = (jwtToken?: string) => {
 
     // Connect to SignalR hub
     const conn = new signalR.HubConnectionBuilder()
-      .withUrl("https://localhost:7066/notificationHub", {
+      .withUrl("http://localhost:5000/notificationHub", {
         accessTokenFactory: () => jwtToken || ""
       })
       .withAutomaticReconnect()
