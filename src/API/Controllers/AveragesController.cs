@@ -1,52 +1,78 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using MyApp.Application.DTOs;
-using MyApp.Domain.Entities;
-using MyApp.Infrastructure.Queues;
-
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using MyApp.Application.DTOs.MyApp.Messaging;
+using MyApp.Application.Interfaces;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 namespace MyApp.API.Controllers
 {
+
     [ApiController]
     [Route("api/[controller]")]
     public class AveragesController : Controller
     {
-        private readonly CalculationQueue _queue;
+        private readonly IRabbitMqPublisher _publisher;
+        private readonly IConfiguration _configuration;
+        private readonly ILogger<AveragesController> _logger;
 
-        public AveragesController(CalculationQueue queue)
+        public AveragesController(IRabbitMqPublisher publisher, IConfiguration configuration, ILogger<AveragesController> logger)
         {
-            _queue = queue;
+            _publisher = publisher;
+            _configuration = configuration;
+            _logger = logger;
         }
 
         [HttpPost]
-        public async Task<IActionResult >Enqueue([FromBody] EnqueueRequestDto req, CancellationToken cancellationToken)
+        public async Task<IActionResult> Enqueue([FromBody] EnqueueRequestDto req, CancellationToken cancellationToken)
         {
-
             var userId = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             var userName = User?.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
 
-            Console.WriteLine(userName);
-            //var userId = "79432985-a38c-43f9-90ed-fc4555071250";
-
-
             if (req == null || string.IsNullOrWhiteSpace(req.ColumnName))
-                return BadRequest("ColumnName is required.");   
+                return BadRequest("ColumnName is required.");
             if (req == null || req.AssetId == Guid.Empty)
-                return BadRequest("AssetId is required.");   
+                return BadRequest("AssetId is required.");
 
-            EnqueueRequest e = new EnqueueRequest
+            var message = new AvgRequestMessage
             {
-                ColumnName = req.ColumnName,   
-                userId = userId,
-                userName = userName,
-                AssetId = req.AssetId
+                AssetId = req.AssetId,
+                ColumnName = req.ColumnName,
+                UserId = userId,
+                UserName = userName
             };
 
-            // while enquing we are awiting here, 
-            //so the backpressure and concellation token works properly 
-            await _queue.EnqueueAsync(e, cancellationToken).ConfigureAwait(false);
+            string requestsQueue = _configuration["RabbitMq:RequestsQueue"] ?? "avg_requests";
+            //await _publisher.PublishAsync(message, requestsQueue, cancellationToken);
 
-
-            return Accepted(new { Message = "Column queued for background calculation.", Column = req.ColumnName });
+            try
+            {
+                await _publisher.PublishAsync(message, requestsQueue, cancellationToken).ConfigureAwait(false);
+                return Accepted(new { Message = "Column queued for background calculation.", Column = req.ColumnName });
+            }
+            catch (QueueFullException)
+            {
+                _logger.LogWarning("Queue full when publishing avg request for AssetId={AssetId}", req.AssetId);
+                return StatusCode(429, new { Message = "Queue is full. Try again later." });
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogWarning("Publish canceled for AssetId={AssetId}", req.AssetId);
+                return StatusCode(503, new { Message = "Request canceled." });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to publish avg request for AssetId={AssetId}", req.AssetId);
+                return StatusCode(503, new { Message = "Failed to enqueue request." });
+            }
         }
-
     }
+
+    public class EnqueueRequestDto
+    {
+        public Guid AssetId { get; set; }
+        public string ColumnName { get; set; } = default!;
+    }
+
 }

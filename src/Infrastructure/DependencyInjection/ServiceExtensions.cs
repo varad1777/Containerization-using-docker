@@ -1,79 +1,78 @@
-﻿    using Microsoft.AspNetCore.Identity;
-    using Microsoft.EntityFrameworkCore;
-    using Microsoft.Extensions.Configuration;
-    using Microsoft.Extensions.DependencyInjection;
-    using Microsoft.IdentityModel.Tokens;
-    using MyApp.Application.Interfaces;
-    using MyApp.Domain.Entities;
-    using MyApp.Infrastructure.Data;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
+using MyApp.Application.Interfaces;
+using MyApp.Domain.Entities;
+using MyApp.Infrastructure.Data;
 using MyApp.Infrastructure.Queues;
-using MyApp.Infrastructure.RTC;
-    using MyApp.Infrastructure.Services;
-    using System.Text;
+using MyApp.Infrastructure.Services;
+using System.Text;
 
-    namespace MyApp.Infrastructure
+namespace MyApp.Infrastructure
+{
+    public static class ServiceExtensions
     {
-        public static class ServiceExtensions
+        public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
         {
-            public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
+            // DbContext
+            services.AddDbContext<AppDbContext>(options =>
+                options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+
+            // Identity
+            services.AddIdentity<ApplicationUser, IdentityRole>()
+                .AddEntityFrameworkStores<AppDbContext>()
+                .AddDefaultTokenProviders();
+
+            // JWT Authentication
+            var jwtSettings = configuration.GetSection("JWT");
+            services.AddAuthentication(options =>
             {
-                // DbContext
-                services.AddDbContext<AppDbContext>(options =>
-                    options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
-
-                // Identity
-                services.AddIdentity<ApplicationUser, IdentityRole>()
-                    .AddEntityFrameworkStores<AppDbContext>()
-                    .AddDefaultTokenProviders();
-
-                // JWT Authentication
-                var jwtSettings = configuration.GetSection("JWT");
-                services.AddAuthentication(options =>
+                options.DefaultAuthenticateScheme = "Bearer";
+                options.DefaultChallengeScheme = "Bearer";
+            })
+            .AddJwtBearer(options =>
+            {
+                options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
                 {
-                    options.DefaultAuthenticateScheme = "Bearer";
-                    options.DefaultChallengeScheme = "Bearer";
-                })
-                .AddJwtBearer(options =>
+                    OnMessageReceived = context =>
+                    {
+                        if (context.Request.Cookies.ContainsKey("jwtToken"))
+                            context.Token = context.Request.Cookies["jwtToken"];
+                        return Task.CompletedTask;
+                    }
+                };
+
+                options.TokenValidationParameters = new TokenValidationParameters
                 {
-                    options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
-                    {
-                        OnMessageReceived = context =>
-                        {
-                            if (context.Request.Cookies.ContainsKey("jwtToken"))
-                                context.Token = context.Request.Cookies["jwtToken"];
-                            return Task.CompletedTask;
-                        }
-                    };
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ClockSkew = TimeSpan.Zero,
+                    ValidIssuer = jwtSettings["ValidIssuer"],
+                    ValidAudience = jwtSettings["ValidAudience"],
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Secret"]))
+                };
+            });
 
-                    options.TokenValidationParameters = new TokenValidationParameters
-                    {
-                        ValidateIssuer = true,
-                        ValidateAudience = true,
-                        ValidateLifetime = true,
-                        ClockSkew = TimeSpan.Zero,
-                        ValidIssuer = jwtSettings["ValidIssuer"],
-                        ValidAudience = jwtSettings["ValidAudience"],
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Secret"]))
-                    };
-                });
+            services.AddAuthorization();
 
-                services.AddAuthorization();
+            // Application Services
+            services.AddScoped<IAssetService, AssetService>();
+            services.AddScoped<ISignalService, SignalService>();
+            services.AddScoped<INotificationService, NotificationService>();
+            services.AddScoped<ITokenService, TokenService>();
 
-                // Application Services
-                services.AddScoped<IAssetService, AssetService>();
-                services.AddScoped<ISignalService, SignalService>();
-                services.AddScoped<INotificationService, NotificationService>();
-                services.AddScoped<ITokenService, TokenService>();
-
-                // SignalR
-                services.AddSignalR();
+            // SignalR
+            services.AddSignalR();
 
             // Register queue and background service
             //services.AddSingleton<CalculationQueue>();
-            services.AddSingleton(sp => new CalculationQueue(capacity: 3));
-            services.AddHostedService<AverageCalculationBackgroundService>();
+            services.AddSingleton<IRabbitMqPublisher, BoundedRabbitMqPublisher>();
+            services.AddHostedService<AverageResultListenerBackgroundService>();
 
-                return services;
-            }
+            return services;
         }
     }
+}

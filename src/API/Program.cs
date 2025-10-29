@@ -24,7 +24,7 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // Middleware
-app.UseHttpsRedirection();
+app.UseHttpsRedirection();  
 app.UseRouting();
 app.UseCors("AllowAll");
 app.UseAuthentication();

@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const RAW_BASE = (import.meta.env?.VITE_API_BASE_URL as string) || "http://localhost:5000/api";
+// const RAW_BASE = (import.meta.env?.VITE_API_BASE_URL as string) || "http://localhost:5000/api";
+const RAW_BASE = (import.meta.env?.VITE_API_BASE_URL as string) || "https://localhost:7066/api";
 const API_BASE_URL = RAW_BASE.replace(/\/$/, "");
 // API base URL
 // const API_BASE_URL = "https://localhost:7066/api";

@@ -16,6 +16,9 @@ export const RTC_API = (jwtToken?: string) => {
   const [connection, setConnection] = useState<signalR.HubConnection | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  // const RAW_BASE = (import.meta.env?.VITE_API_BASE_URL as string) || "http://localhost:5000/api";
+  const RAW_BASE = (import.meta.env?.VITE_API_BASE_URL as string) || "https://localhost:7066/api";
+const API_BASE_URL = RAW_BASE.replace(/\/$/, "");
 
   // Unread count derived from notifications
   const unreadCount = Array.isArray(notifications)
@@ -58,7 +61,7 @@ export const RTC_API = (jwtToken?: string) => {
   // Mark all notifications as read
   const markAllRead = async () => {
     try {
-      await axios.put("http://localhost:5000/api/notifications/mark-all-read", {},
+      await axios.put(`${API_BASE_URL}/notifications/mark-all-read`, {},
         {
           withCredentials: true,
           headers: { "Content-Type": "application/json" }
@@ -72,7 +75,7 @@ export const RTC_API = (jwtToken?: string) => {
   // Mark a single notification as read
   const markAsRead = async (id: string) => {
     try {
-      await axios.put(`http://localhost:5000/api/notifications/mark-read/${id}`, {}, {
+      await axios.put(`${API_BASE_URL}/notifications/mark-read/${id}`, {}, {
         withCredentials: true,
         headers: { "Content-Type": "application/json" }
       });
@@ -87,7 +90,7 @@ export const RTC_API = (jwtToken?: string) => {
 
   useEffect(() => {
     // Fetch existing notifications on login
-    axios.get("http://localhost:5000/api/notifications", {
+    axios.get(`${API_BASE_URL}/notifications`, {
       withCredentials: true
     })
       .then(res => setNotifications(res.data))
@@ -95,7 +98,7 @@ export const RTC_API = (jwtToken?: string) => {
 
     // Connect to SignalR hub
     const conn = new signalR.HubConnectionBuilder()
-      .withUrl("http://localhost:5000/notificationHub", {
+      .withUrl("https://localhost:7066/notificationHub", {
         accessTokenFactory: () => jwtToken || ""
       })
       .withAutomaticReconnect()
