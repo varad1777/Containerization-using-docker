@@ -49,7 +49,7 @@ export function AuthPage() {
 
       const res =  isSignup ? await authApi.signup(payload) : await authApi.login(payload)
 
-      console.log(res)
+      console.log("The res is ",res)
 
      
 
@@ -62,10 +62,12 @@ export function AuthPage() {
         return
       }
        localStorage.setItem("username" , res?.data?.user);
-      localStorage.setItem("role" , res?.data?.roles[0]);
+      if (Array.isArray(res?.data?.roles) && res.data.roles.length > 0) {
+      localStorage.setItem("role", res.data.roles[0]);
+     }
 
       // Login returns token, register can auto-login if backend returns token
-      if (!isSignup || (isSignup && res?.data?.roken)) {
+      if (!isSignup || (isSignup && res?.data?.token)) {
      
         toast.success(isSignup ? "Signup successful!" : "Login successful!")
       
@@ -80,6 +82,7 @@ export function AuthPage() {
       }
     } catch (err: any) {
      
+      console.log(err)
       toast.error("Network error. Try again later.")
     } finally {
       setLoading(false)

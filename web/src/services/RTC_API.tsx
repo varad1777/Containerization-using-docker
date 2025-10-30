@@ -16,8 +16,8 @@ export const RTC_API = (jwtToken?: string) => {
   const [connection, setConnection] = useState<signalR.HubConnection | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isConnected, setIsConnected] = useState(false);
-  // const RAW_BASE = (import.meta.env?.VITE_API_BASE_URL as string) || "http://localhost:5000/api";
-  const RAW_BASE = (import.meta.env?.VITE_API_BASE_URL as string) || "https://localhost:7066/api";
+  const RAW_BASE = (import.meta.env?.VITE_API_BASE_URL as string) || "http://localhost:5000/api";
+  // const RAW_BASE = (import.meta.env?.VITE_API_BASE_URL as string) || "https://localhost:7066/api";
 const API_BASE_URL = RAW_BASE.replace(/\/$/, "");
 
   // Unread count derived from notifications
@@ -98,7 +98,7 @@ const API_BASE_URL = RAW_BASE.replace(/\/$/, "");
 
     // Connect to SignalR hub
     const conn = new signalR.HubConnectionBuilder()
-      .withUrl("https://localhost:7066/notificationHub", {
+      .withUrl("http://localhost:5000/notificationHub", {
         accessTokenFactory: () => jwtToken || ""
       })
       .withAutomaticReconnect()

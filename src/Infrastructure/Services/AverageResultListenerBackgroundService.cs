@@ -9,6 +9,7 @@ using MyApp.Infrastructure.Data;
 using MyApp.Infrastructure.RTC;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using RabbitMQ.Client.Exceptions;
 using System;
 using System.Text;
 using System.Text.Json;
@@ -25,7 +26,7 @@ namespace MyApp.Infrastructure.Services
         private readonly IServiceProvider _serviceProvider;
         private IConnection? _connection;
         private IModel? _channel;
-        private readonly ConnectionFactory _factory;
+        private ConnectionFactory? _factory;
         private readonly string _resultsQueue;
         private string? _consumerTag;
 
@@ -40,162 +41,184 @@ namespace MyApp.Infrastructure.Services
             _serviceProvider = serviceProvider;
             _logger = logger;
 
+            // Use docker-friendly default "rabbitmq"
             _factory = new ConnectionFactory
             {
-                HostName = _config["RabbitMq:Host"] ?? "localhost",
-                UserName = _config["RabbitMq:User"] ?? "guest",
-                Password = _config["RabbitMq:Password"] ?? "guest",
-                DispatchConsumersAsync = true
+                HostName = _config["RabbitMq:Host"] ?? _config["RabbitMq__Host"] ?? "rabbitmq",
+                UserName = _config["RabbitMq:User"] ?? _config["RabbitMq__User"] ?? "guest",
+                Password = _config["RabbitMq:Password"] ?? _config["RabbitMq__Password"] ?? "guest",
+                DispatchConsumersAsync = true,
+                AutomaticRecoveryEnabled = true,
+                NetworkRecoveryInterval = TimeSpan.FromSeconds(10)
             };
 
-            _resultsQueue = _config["RabbitMq:ResultsQueue"] ?? "avg_results";
+            _resultsQueue = _config["RabbitMq:ResultsQueue"] ?? _config["RabbitMq__ResultsQueue"] ?? "avg_results";
         }
 
-        public override async Task StartAsync(CancellationToken cancellationToken)
+        // Keep StartAsync lightweight and non-throwing
+        public override Task StartAsync(CancellationToken cancellationToken)
         {
-            try
-            {
-                // Use synchronous create for simplicity and immediate exception if RabbitMQ unavailable.
-                _connection = _factory.CreateConnection();
-                _channel = _connection.CreateModel();
-
-                _channel.QueueDeclare(queue: _resultsQueue, durable: true, exclusive: false, autoDelete: false);
-                _channel.BasicQos(0, 1, false);
-
-                _logger.LogInformation("AverageResultListener started and listening to {Queue}", _resultsQueue);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to create RabbitMQ connection/channel in StartAsync");
-                throw;
-            }
-
-            await base.StartAsync(cancellationToken);
+            _logger.LogInformation("AverageResultListenerBackgroundService starting. RabbitMQ host: {Host}, queue: {Queue}",
+                _factory?.HostName, _resultsQueue);
+            return base.StartAsync(cancellationToken);
         }
 
-        protected override Task ExecuteAsync(CancellationToken stoppingToken)
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            if (_channel == null)
+            if (_factory == null)
             {
-                throw new InvalidOperationException("RabbitMQ channel is not initialized. Make sure StartAsync completed successfully.");
+                _logger.LogError("ConnectionFactory not initialized. Exiting listener.");
+                return;
             }
 
-            var consumer = new AsyncEventingBasicConsumer(_channel);
+            int attempt = 0;
+            TimeSpan delay = TimeSpan.FromSeconds(5);
+            const int maxAttemptsBeforeLongerBackoff = 6;
 
-            consumer.Received += async (sender, ea) =>
+            // Retry loop: keep attempting to connect until stopped
+            while (!stoppingToken.IsCancellationRequested)
             {
+                attempt++;
                 try
                 {
-                    var body = ea.Body.ToArray();
-                    var json = Encoding.UTF8.GetString(body);
-                    _logger.LogInformation("📨 Received message from queue {Queue}: {Json}", _resultsQueue, json);
+                    _logger.LogInformation("Attempting to connect to RabbitMQ (attempt {Attempt})...", attempt);
+                    _connection = _factory.CreateConnection();
+                    _channel = _connection.CreateModel();
 
-                    var result = JsonSerializer.Deserialize<AvgResultMessage>(json);
+                    // Idempotent queue declaration
+                    _channel.QueueDeclare(queue: _resultsQueue, durable: true, exclusive: false, autoDelete: false, arguments: null);
+                    _channel.BasicQos(0, 1, false);
 
-                    if (result == null)
+                    _logger.LogInformation("Connected to RabbitMQ on host {Host} and declared queue {Queue}.", _factory.HostName, _resultsQueue);
+
+                    // Start consumer
+                    var consumer = new AsyncEventingBasicConsumer(_channel);
+                    consumer.Received += async (sender, ea) =>
                     {
-                        _logger.LogWarning("⚠️ Failed to deserialize message: {Json}", json);
-                        _channel.BasicAck(ea.DeliveryTag, false);
-                        return;
-                    }
+                        try
+                        {
+                            var body = ea.Body.ToArray();
+                            var json = Encoding.UTF8.GetString(body);
+                            _logger.LogInformation("📨 Received message from queue {Queue}: {Json}", _resultsQueue, json);
 
-                    _logger.LogInformation("✅ Parsed AvgResultMessage: RequestId={RequestId}, UserId={UserId}, Column={Column}, Avg={Average}",
-                        result.RequestId, result.UserId, result.ColumnName, result.Average);
+                            var result = JsonSerializer.Deserialize<AvgResultMessage>(json);
 
-                    // --- Save to DB ---
-                    using var scope = _serviceProvider.CreateScope();
-                    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                            if (result == null)
+                            {
+                                _logger.LogWarning("⚠️ Failed to deserialize message: {Json}", json);
+                                _channel.BasicAck(ea.DeliveryTag, false);
+                                return;
+                            }
 
-                    var notification = new Notification
-                    {
-                        Message = $"The Average for column {result.ColumnName} is {result.Average}",
-                        CreatedBy = result.UserId ?? "system",
-                        CreatedAt = DateTime.UtcNow
+                            _logger.LogInformation("✅ Parsed AvgResultMessage: RequestId={RequestId}, UserId={UserId}, Column={Column}, Avg={Average}",
+                                result.RequestId, result.UserId, result.ColumnName, result.Average);
+
+                            // --- Save to DB ---
+                            using var scope = _serviceProvider.CreateScope();
+                            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                            var notification = new Notification
+                            {
+                                Message = $"The Average for column {result.ColumnName} is {result.Average}",
+                                CreatedBy = result.UserId ?? "system",
+                                CreatedAt = DateTime.UtcNow
+                            };
+
+                            db.Notifications.Add(notification);
+                            await db.SaveChangesAsync(stoppingToken);
+
+                            if (!string.IsNullOrEmpty(result.UserId))
+                            {
+                                var userNotification = new UserNotification
+                                {
+                                    UserId = result.UserId,
+                                    NotificationId = notification.Id,
+                                    IsRead = false
+                                };
+
+                                db.UserNotifications.Add(userNotification);
+                                await db.SaveChangesAsync(stoppingToken);
+
+                                _logger.LogInformation("💾 Notification saved for user {UserId}", result.UserId);
+                            }
+
+                            // --- Send via SignalR ---
+                            if (!string.IsNullOrEmpty(result.UserId))
+                            {
+                                var messageText = $"The Average for column {result.ColumnName} is {result.Average}";
+                                _logger.LogInformation("📤 Sending notification to user {UserId} via SignalR", result.UserId);
+
+                                await _hubContext.Clients.User(result.UserId).SendAsync(
+                                   "ReceiveNotification",
+                                    result.RequestId,
+                                    result.UserId,
+                                    messageText,
+                                    result.CompletedAtUtc,
+                                    cancellationToken: stoppingToken
+                                );
+
+                                _logger.LogInformation("✅ SignalR notification sent to user {UserId}", result.UserId);
+                            }
+                            else
+                            {
+                                _logger.LogWarning("⚠️ Skipped SignalR send — missing UserId for RequestId={RequestId}", result.RequestId);
+                            }
+
+                            _channel.BasicAck(ea.DeliveryTag, false);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "❌ Error processing avg result message. NACKing (no requeue).");
+                            try { _channel?.BasicNack(ea.DeliveryTag, false, false); } catch { }
+                        }
                     };
 
-                    db.Notifications.Add(notification);
-                    await db.SaveChangesAsync(stoppingToken);
+                    // Start consuming and store consumer tag
+                    _consumerTag = _channel.BasicConsume(queue: _resultsQueue, autoAck: false, consumer: consumer);
 
-                    if (!string.IsNullOrEmpty(result.UserId))
-                    {
-                        var userNotification = new UserNotification
-                        {
-                            UserId = result.UserId,
-                            NotificationId = notification.Id,
-                            IsRead = false
-                        };
-
-                        db.UserNotifications.Add(userNotification);
-                        await db.SaveChangesAsync(stoppingToken);
-
-                        _logger.LogInformation("💾 Notification saved for user {UserId}", result.UserId);
-                    }
-
-                    // --- Send via SignalR ---
-                    if (!string.IsNullOrEmpty(result.UserId))
-                    {
-
-                        var messageText = $"The Average for column {result.ColumnName} is {result.Average}";
-                        _logger.LogInformation("📤 Sending notification to user {UserId} via SignalR", result.UserId);
-
-                        await _hubContext.Clients.User(result.UserId).SendAsync(
-                           "ReceiveNotification",
-                            result.RequestId,        // id (you can also use notification.Id if you want DB id)
-                            result.UserId,           // createdBy
-                            messageText,             // message
-                            result.CompletedAtUtc,   // createdAt
-                            cancellationToken: stoppingToken
-                        );
-
-                        _logger.LogInformation("✅ SignalR notification sent to user {UserId}", result.UserId);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("⚠️ Skipped SignalR send — missing UserId for RequestId={RequestId}", result.RequestId);
-                    }
-
-                    _channel.BasicAck(ea.DeliveryTag, false);
+                    // Connected and consumer running — break retry loop
+                    break;
                 }
-                catch (Exception ex)
+                catch (BrokerUnreachableException brEx)
                 {
-                    _logger.LogError(ex, "❌ Error processing avg result message. NACKing (no requeue).");
-                    try { _channel.BasicNack(ea.DeliveryTag, false, false); } catch { }
+                    _logger.LogWarning(brEx, "RabbitMQ unreachable on attempt {Attempt}. Will retry after {Delay}.", attempt, delay);
                 }
-            };
+                catch (Exception ex) when (!(ex is OperationCanceledException))
+                {
+                    _logger.LogError(ex, "Unexpected error while connecting to RabbitMQ (attempt {Attempt}). Will retry after {Delay}.", attempt, delay);
+                }
 
-
-
-            // Start consuming (non-blocking). Keep consumerTag so we can cancel on shutdown.
-            _consumerTag = _channel.BasicConsume(queue: _resultsQueue, autoAck: false, consumer: consumer);
-
-            // Register cancellation to close channel/connection gracefully.
-            stoppingToken.Register(() =>
-            {
+                // Wait with cancellation support
                 try
                 {
-                    if (_channel != null && !string.IsNullOrEmpty(_consumerTag))
-                    {
-                        _channel.BasicCancel(_consumerTag);
-                    }
+                    await Task.Delay(delay, stoppingToken);
                 }
-                catch (Exception ex)
+                catch (OperationCanceledException)
                 {
-                    _logger.LogWarning(ex, "Error while cancelling RabbitMQ consumer during shutdown.");
+                    _logger.LogInformation("Stopping token requested while waiting to retry RabbitMQ connection.");
+                    return;
                 }
-            });
 
-            // Consumer callbacks run on the background — returning a completed task is fine here.
-            return Task.CompletedTask;
+                // Backoff growth
+                if (attempt % maxAttemptsBeforeLongerBackoff == 0)
+                    delay = TimeSpan.FromSeconds(30);
+                else
+                    delay = delay + TimeSpan.FromSeconds(5);
+            }
+
+            // Keep the service alive until cancellation; consumer callbacks handle messages
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+            }
         }
 
         public override void Dispose()
         {
+            try { if (!string.IsNullOrEmpty(_consumerTag) && _channel != null) _channel.BasicCancel(_consumerTag); } catch { }
             try { _channel?.Close(); } catch { }
             try { _connection?.Close(); } catch { }
             base.Dispose();
         }
     }
-
-    // make sure this model exists somewhere accessible (or replace with your actual type)
-
 }
