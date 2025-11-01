@@ -48,7 +48,7 @@ namespace MyApp.Infrastructure.Services
                  issuer: _configuration["JWT:ValidIssuer"],
                  audience: _configuration["JWT:ValidAudience"],
                  claims: claims,
-                 expires: DateTime.UtcNow.AddMinutes(15),   // 10-second expiry
+                 expires: DateTime.UtcNow.AddMinutes(60),   // 10-second expiry
                  signingCredentials: creds
              );
 

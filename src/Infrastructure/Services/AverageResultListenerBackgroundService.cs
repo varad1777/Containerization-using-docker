@@ -113,43 +113,15 @@ namespace MyApp.Infrastructure.Services
                             _logger.LogInformation("✅ Parsed AvgResultMessage: RequestId={RequestId}, UserId={UserId}, Column={Column}, Avg={Average}",
                                 result.RequestId, result.UserId, result.ColumnName, result.Average);
 
-                            // --- Save to DB ---
-                            using var scope = _serviceProvider.CreateScope();
-                            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-                            var notification = new Notification
-                            {
-                                Message = $"The Average for column {result.ColumnName} is {result.Average}",
-                                CreatedBy = result.UserId ?? "system",
-                                CreatedAt = DateTime.UtcNow
-                            };
-
-                            db.Notifications.Add(notification);
-                            await db.SaveChangesAsync(stoppingToken);
-
-                            if (!string.IsNullOrEmpty(result.UserId))
-                            {
-                                var userNotification = new UserNotification
-                                {
-                                    UserId = result.UserId,
-                                    NotificationId = notification.Id,
-                                    IsRead = false
-                                };
-
-                                db.UserNotifications.Add(userNotification);
-                                await db.SaveChangesAsync(stoppingToken);
-
-                                _logger.LogInformation("💾 Notification saved for user {UserId}", result.UserId);
-                            }
 
                             // --- Send via SignalR ---
                             if (!string.IsNullOrEmpty(result.UserId))
                             {
-                                var messageText = $"The Average for column {result.ColumnName} is {result.Average}";
+                                var messageText = $"{result.Average}";
                                 _logger.LogInformation("📤 Sending notification to user {UserId} via SignalR", result.UserId);
 
                                 await _hubContext.Clients.User(result.UserId).SendAsync(
-                                   "ReceiveNotification",
+                                   "ReceivedAvarage",
                                     result.RequestId,
                                     result.UserId,
                                     messageText,

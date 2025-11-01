@@ -29,7 +29,11 @@ var app = builder.Build();
 await app.MigrateAndSeedOnStartupAsync(new[] { "Admin", "User", "SuperAdmin" });
 
 // Middleware
-app.UseHttpsRedirection();  
+// Only enable HTTPS redirection in Production where TLS is configured (avoids redirect warnings in dev containers)
+if (app.Environment.IsProduction())
+{
+    app.UseHttpsRedirection();
+}
 app.UseRouting();
 app.UseCors("AllowAll");
 app.UseAuthentication();

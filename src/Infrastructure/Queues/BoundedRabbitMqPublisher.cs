@@ -32,8 +32,32 @@ namespace MyApp.Infrastructure.Queues
                 Password = config["RabbitMq:Password"] ?? "guest"
             };
 
-            _connection = factory.CreateConnection();
-            _channel = _connection.CreateModel();
+            int attempt = 0;
+            const int maxAttempts = 10;
+
+            while (true)
+            {
+                try
+                {
+                    attempt++;
+                    _logger.LogInformation("🐇 Attempting to connect to RabbitMQ (attempt {Attempt})...", attempt);
+
+                    _connection = factory.CreateConnection();
+                    _channel = _connection.CreateModel();
+                    break; // success
+                }catch(BrokerUnreachableException ex)
+                {
+                    if (attempt >= maxAttempts)
+                    {
+                        _logger.LogCritical(ex, "❌ RabbitMQ not reachable after {MaxAttempts} attempts. Giving up.", maxAttempts);
+                        throw; // let app fail — RabbitMQ might be essential
+                    }
+
+                    _logger.LogWarning(ex, "⚠️ RabbitMQ unreachable (attempt {Attempt}). Retrying in 5 seconds...", attempt);
+                    Thread.Sleep(5000);
+                }
+            }
+          
 
             _requestsQueue = config["RabbitMq:RequestsQueue"] ?? "avg_requests";
             _resultsQueue = config["RabbitMq:ResultsQueue"] ?? "avg_results";
@@ -135,7 +159,7 @@ namespace MyApp.Infrastructure.Queues
         private void DoPublish<T>(T message, string targetQueue)
         {
             var json = JsonSerializer.Serialize(message);
-            var body = Encoding.UTF8.GetBytes(json);
+            var body = Encoding.UTF8.GetBytes(json); // rabbit mq needs byte array
 
             var props = _channel.CreateBasicProperties();
             props.Persistent = true; // message will be persisted to disk, so when msg broker restarts it is not lost

@@ -14,6 +14,27 @@ services:
     networks:
       - device-net
 
+  # ---------- RABBITMQ (dev) ----------
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: deviceproject_rabbitmq_dev
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-guest}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - device-net
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+
   # ---------- BACKEND ----------
   backend:
     build:
@@ -23,12 +44,19 @@ services:
     container_name: deviceproject_backend_dev
     depends_on:
       - db
+      - rabbitmq
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      # Ensure dotnet watch picks up file changes on mounted filesystems (Windows/VM polling)
+      - DOTNET_USE_POLLING_FILE_WATCHER=1
       - ConnectionStrings__DefaultConnection=${CONNECTION_STRING}
       - JWT__Secret=${JWT_SECRET}
       - JWT__ValidIssuer=${JWT_ISSUER}
       - JWT__ValidAudience=${JWT_AUDIENCE}
+      # RabbitMQ settings - point to the rabbitmq service and pass credentials
+      - RabbitMq__Host=rabbitmq
+      - RabbitMq__User=${RABBITMQ_DEFAULT_USER:-guest}
+      - RabbitMq__Password=${RABBITMQ_DEFAULT_PASS:-guest}
     ports:
       - "5000:5000"
     networks:
@@ -36,6 +64,8 @@ services:
     volumes:
       - ./src:/workspace:cached
       - ~/.nuget:/root/.nuget:cached
+      # Persist ASP.NET Core DataProtection keys so auth cookies and keys survive container restarts
+      - data-protection-keys:/root/.aspnet/DataProtection-Keys
     working_dir: /workspace/API
     command: >
       sh -c "dotnet restore && dotnet watch run --no-launch-profile --urls=http://0.0.0.0:5000"
@@ -46,6 +76,33 @@ services:
       retries: 6
 
   # ---------- FRONTEND ----------
+  # ---------- WORKER (dev) ----------
+  worker:
+    build:
+      context: ./Worker
+      dockerfile: Dockerfile.dev
+    image: deviceproject-worker-dev
+    container_name: deviceproject_worker_dev
+    depends_on:
+      - db
+      - rabbitmq
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      # Ensure dotnet watch picks up file changes on mounted filesystems (Windows/VM polling)
+      - DOTNET_USE_POLLING_FILE_WATCHER=1
+      - ConnectionStrings__DefaultConnection=${CONNECTION_STRING}
+      - RabbitMq__Host=rabbitmq
+      - RabbitMq__User=${RABBITMQ_DEFAULT_USER}
+      - RabbitMq__Password=${RABBITMQ_DEFAULT_PASS}
+    networks:
+      - device-net
+    volumes:
+      - ./Worker:/workspace:cached
+      - ~/.nuget:/root/.nuget:cached
+    working_dir: /workspace
+    command: >
+      sh -c "dotnet restore && dotnet watch run --no-launch-profile"
+
   frontend:
     build:
       context: ./web
@@ -57,6 +114,9 @@ services:
     environment:
       # Points to backend API reachable from host browser
       - VITE_API_BASE_URL=http://localhost:5000/api
+      # Enable polling for file watchers on mounted volumes (improves HMR reliability on Docker Desktop / Windows)
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=100
     ports:
       - "3000:3000"
     networks:
@@ -70,6 +130,8 @@ services:
 
 volumes:
   mssql-data:
+  rabbitmq-data:
+  data-protection-keys:
 
 networks:
   device-net:

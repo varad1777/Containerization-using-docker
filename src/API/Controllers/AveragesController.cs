@@ -43,12 +43,14 @@ namespace MyApp.API.Controllers
                 UserName = userName
             };
 
+            //string requestsQueue = _configuration["RabbitMq:RequestsQueue"] ?? "avg_requests";
             string requestsQueue = _configuration["RabbitMq:RequestsQueue"] ?? "avg_requests";
             //await _publisher.PublishAsync(message, requestsQueue, cancellationToken);
 
             try
             {
                 await _publisher.PublishAsync(message, requestsQueue, cancellationToken).ConfigureAwait(false);
+                // configureAwait tells that, after wait run the continuation in any thread, not necessarily the original one.
                 return Accepted(new { Message = "Column queued for background calculation.", Column = req.ColumnName });
             }
             catch (QueueFullException)
@@ -64,7 +66,7 @@ namespace MyApp.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to publish avg request for AssetId={AssetId}", req.AssetId);
-                return StatusCode(503, new { Message = "Failed to enqueue request." });
+                return StatusCode(503, new { Message = "Failed to enqueue request, try after 2 sec" });
             }
         }
     }

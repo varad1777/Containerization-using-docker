@@ -110,11 +110,6 @@ namespace EF_core_assignment.Controllers
                     Name = dto.Name,
                     Description = dto.Description,
                     UserId = userId
-                    //Signals = dto.Signals.Select(s => new Signal
-                    //{
-                    //    Name = s.Name,
-                    //    Description = s.Description
-                    //}).ToList()
                 };
 
 

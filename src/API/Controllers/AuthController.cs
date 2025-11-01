@@ -155,7 +155,7 @@ namespace EF_core_assignment.Controllers
                 HttpOnly = true,
                 Secure = true,
                 SameSite = SameSiteMode.None,
-                Expires = DateTimeOffset.UtcNow.AddMinutes(15)
+                Expires = DateTimeOffset.UtcNow.AddMinutes(60)
             });
 
             Response.Cookies.Append("refreshToken", newRefreshToken.Token, new CookieOptions

@@ -1,0 +1,18 @@
+# Worker/Dockerfile.dev
+# Development image using the SDK so we can run `dotnet watch` inside the container
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS dev
+WORKDIR /workspace
+
+# Copy project file first for caching
+COPY ["MyApp.AverageCalculator.csproj", "./"]
+
+# Restore dependencies
+RUN dotnet restore "MyApp.AverageCalculator.csproj"
+
+# Copy the rest of the source (in dev mode this will be overridden by a bind mount)
+COPY . .
+
+ENV ASPNETCORE_ENVIRONMENT=Development
+
+# Use dotnet watch for hot reload during development
+CMD ["dotnet", "watch", "run", "--no-launch-profile"]

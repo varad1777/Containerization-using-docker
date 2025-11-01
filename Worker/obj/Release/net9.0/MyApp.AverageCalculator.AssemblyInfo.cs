@@ -11,11 +11,10 @@
 using System;
 using System.Reflection;
 
-[assembly: Microsoft.Extensions.Configuration.UserSecrets.UserSecretsIdAttribute("dotnet-MyApp.AverageCalculator-04798992-4676-4a29-9e7b-504ebab0b9d7")]
 [assembly: System.Reflection.AssemblyCompanyAttribute("MyApp.AverageCalculator")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3d8e06146fc414ee7f922d0f8a2f7509aa57b5a0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+fee322c686228c1d005053183b45c5698dc35831")]
 [assembly: System.Reflection.AssemblyProductAttribute("MyApp.AverageCalculator")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MyApp.AverageCalculator")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

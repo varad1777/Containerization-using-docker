@@ -1,32 +1,25 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Varad Dhumale\\Desktop\\data\\11_Containerization\\MyApp.AverageCalculator\\MyApp.AverageCalculator.csproj": {}
+    "/workspace/MyApp.AverageCalculator.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Varad Dhumale\\Desktop\\data\\11_Containerization\\MyApp.AverageCalculator\\MyApp.AverageCalculator.csproj": {
+    "/workspace/MyApp.AverageCalculator.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Varad Dhumale\\Desktop\\data\\11_Containerization\\MyApp.AverageCalculator\\MyApp.AverageCalculator.csproj",
+        "projectUniqueName": "/workspace/MyApp.AverageCalculator.csproj",
         "projectName": "MyApp.AverageCalculator",
-        "projectPath": "C:\\Users\\Varad Dhumale\\Desktop\\data\\11_Containerization\\MyApp.AverageCalculator\\MyApp.AverageCalculator.csproj",
-        "packagesPath": "C:\\Users\\Varad Dhumale\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Varad Dhumale\\Desktop\\data\\11_Containerization\\MyApp.AverageCalculator\\obj\\",
+        "projectPath": "/workspace/MyApp.AverageCalculator.csproj",
+        "packagesPath": "/root/.nuget/packages/",
+        "outputPath": "/workspace/obj/",
         "projectStyle": "PackageReference",
-        "fallbackFolders": [
-          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-        ],
         "configFilePaths": [
-          "C:\\Users\\Varad Dhumale\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+          "/root/.nuget/NuGet/NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net9.0"
         ],
         "sources": {
-          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
-          "C:\\Program Files\\dotnet\\library-packs": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -80,7 +73,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.305/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/9.0.306/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

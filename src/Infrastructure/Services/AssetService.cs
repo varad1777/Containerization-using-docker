@@ -20,54 +20,63 @@ namespace MyApp.Infrastructure.Services
         {
             try
             {
+                // Check if asset with same name exists
+                bool exists = _context.Assets.Any(a => a.Name.ToLower() == asset.Name.ToLower());
+
+                if (exists)
+                    throw new Exception($"Asset with name '{asset.Name}' already exists.");
 
                 _context.Assets.Add(asset);
                 _context.SaveChanges();
                 return asset;
             }
-            catch (Exception ex)
+            catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("duplicate") == true)
             {
-                throw new Exception("An unexpected error occurred while creating the asset: " + ex.Message, ex);
-            }
-        }
-
-        public Asset? Update(Guid id, Asset updatedAsset)
-        {
-            try
-            {
-                // Load existing Asset including Signals
-                var asset = _context.Assets
-                    .Include(a => a.Signals)
-                    .FirstOrDefault(a => a.Id == id);
-                // firstORDefault return the first, that satisfied the condition,
-                // if no element was found then return the default value 
-
-                if (asset == null) return null;
-
-                // Update Asset properties
-                asset.Name = updatedAsset.Name;
-                asset.Description = updatedAsset.Description;
-
-                //// Remove all existing signals
-                //_context.Signals.RemoveRange(asset.Signals);
-
-                //// Add new signals from DTO
-                //asset.Signals = updatedAsset.Signals.Select(s => new Signal
-                //{
-                //    Name = s.Name,
-                //    Description = s.Description,
-                //    AssetId = asset.Id
-                //}).ToList();
-
-                _context.SaveChanges();
-
-                return asset;
+                throw new Exception($"Asset with name '{asset.Name}' already exists.", ex);
             }
             catch (Exception ex)
             {
-                throw new Exception("An unexpected error occurred while updating the asset: " + ex.Message, ex);
+                throw new Exception(ex.Message, ex);
             }
         }
+
+
+      public Asset? Update(Guid id, Asset updatedAsset)
+{
+    try
+    {
+        // Load existing Asset including Signals
+        var asset = _context.Assets
+            .Include(a => a.Signals)
+            .FirstOrDefault(a => a.Id == id);
+
+        if (asset == null) return null;
+
+        // Check if another asset already uses this name
+        bool nameExists = _context.Assets
+            .Any(a => a.Name.ToLower() == updatedAsset.Name.ToLower() && a.Id != id);
+
+        if (nameExists)
+            throw new Exception($"Another asset with the name '{updatedAsset.Name}' already exists.");
+
+        // Update Asset properties
+        asset.Name = updatedAsset.Name;
+        asset.Description = updatedAsset.Description;
+
+        _context.SaveChanges();
+
+        return asset;
+    }
+    catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("duplicate") == true)
+    {
+        throw new Exception($"Asset with the name '{updatedAsset.Name}' already exists.", ex);
+    }
+    catch (Exception ex)
+    {
+        throw new Exception("An unexpected error occurred while updating the asset: " + ex.Message, ex);
+    }
+}
+
 
 
         public bool Delete(Guid id)
