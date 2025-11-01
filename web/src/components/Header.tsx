@@ -1,8 +1,8 @@
 import { Bell, BellOff, LogOut, Plus, Server, User } from "lucide-react"
 import { Button } from "./ui/button"
 import { RightDrawer } from "./RightDrawer"
-import { RTC_API } from "@/services/RTC_API";
-import { useState } from "react";
+import { useRtc } from "@/services/RTC_API";
+import { useEffect, useState, useRef } from "react";
 import toast from "react-hot-toast";
 import { authApi } from "@/services/api";
 import { useNavigate } from "react-router-dom";
@@ -10,8 +10,49 @@ import { useNavigate } from "react-router-dom";
 export function Header() {
 
     const [openRightDrawer, setOpenRightDrawer] = useState(false);
-    const { notifications, isConnected, unreadCount, markAllRead, markAsRead } = RTC_API();
     let navigate = useNavigate();
+
+
+    const {  notifications, unreadCount, markAllRead, markAsRead, isConnected } = useRtc();
+
+    // We no longer register a second handler on the SignalR connection here because
+    // the global `RtcProvider` already registers handlers and updates `notifications`.
+    // Registering another handler caused duplicate notifications. Instead we show
+    // a toast when `notifications` changes and a new notification appears.
+        const latestNotificationIdRef = useRef<string | null>(null);
+        // Skip toasting for the initial notifications load (so reloading the page doesn't show old notifications)
+        const skipInitialRef = useRef(true);
+        useEffect(() => {
+            if (!notifications || notifications.length === 0) return;
+            const latest = notifications[0];
+            if (!latest) return;
+
+            if (skipInitialRef.current) {
+                // on first load, just record the id and don't show toast
+                latestNotificationIdRef.current = latest.id;
+                skipInitialRef.current = false;
+                return;
+            }
+
+            if (latestNotificationIdRef.current !== latest.id) {
+                // new notification arrived after initial load
+                latestNotificationIdRef.current = latest.id;
+                toast.custom(t => (
+                    <div className={`${t.visible ? "animate-enter" : "animate-leave"} max-w-sm w-full bg-white shadow-lg rounded-xl pointer-events-auto flex ring-1 ring-black ring-opacity-5 overflow-hidden`}>
+                        <div className="flex-shrink-0 flex items-center justify-center w-14 bg-blue-500">
+                            <Bell className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex-1 p-4">
+                            <p className="text-md font-semibold text-gray-900 truncate">Notification</p>
+                            <p className="mt-1 text-md text-gray-700 line-clamp-2">{latest.message}</p>
+                        </div>
+                        <div className="flex items-start justify-center pr-3 pt-3">
+                            <button onClick={() => toast.dismiss(t.id)} className="text-gray-400 hover:text-gray-600 text-lg font-bold">×</button>
+                        </div>
+                    </div>
+                ), { position: "bottom-right", duration: 3000 });
+            }
+        }, [notifications]);
 
     let SignOut = async () => {
 
@@ -41,7 +82,7 @@ export function Header() {
 
         <header className=" mx-auto mt-4 sticky top-0 left-0 right-0 w-[98%] shadow shadow-black rounded-2xl z-50">
             {/* The drawer itself */}
-            <RightDrawer notifications={notifications} open={openRightDrawer} onOpenChange={setOpenRightDrawer}  markAllRead={markAllRead} markAsRead={markAsRead }  />
+            <RightDrawer notifications={notifications} open={openRightDrawer} onOpenChange={setOpenRightDrawer} markAllRead={markAllRead} markAsRead={markAsRead} />
 
             <div className="container mx-auto px-3 py-4 group relative overflow-hidden rounded-xl border border-border/40 bg-gradient-to-r from-card via-card to-card/80 backdrop-blur-sm transition-all duration-300 hover:border-primary/40">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -67,7 +108,7 @@ export function Header() {
                         <div className="flex flex-wrap items-center gap-3 sm:gap-4">
                             {/* Notification Bell */}
                             <p
-                                onClick={() =>  setOpenRightDrawer(true) }
+                                onClick={() => setOpenRightDrawer(true)}
                                 className={`
                     flex items-center justify-center relative
                     w-8 h-8 p-[2px] rounded-full cursor-pointer

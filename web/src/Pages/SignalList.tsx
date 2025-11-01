@@ -13,6 +13,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { getRole } from "@/services/utilities";
 import { Slider } from "@/components/ui/slider";
 import { SliderRange, SliderThumb, SliderTrack } from "@radix-ui/react-slider";
+import { useRtc } from "@/services/RTC_API";
+
+
 
 
 
@@ -41,6 +44,7 @@ export default function SignalList() {
     const [pageSize] = useState(5);
     const [loading, setLoading] = useState(false);
     const [Strength, SetStrength] = useState(50)
+
     const [paged, setPaged] = useState<PagedResult<SignalDto>>({
         items: [],
         totalCount: 0,
@@ -48,6 +52,7 @@ export default function SignalList() {
         pageSize,
         totalPages: 0,
     });
+
 
     // Dialog states
     const [openCreate, setOpenCreate] = useState(false);
@@ -61,7 +66,38 @@ export default function SignalList() {
 
     const { assetId } = useParams<{ assetId: string }>();
     let navigate = useNavigate();
+    const [averageLocal, setAverageLocal] = useState<string | null>(null);
 
+    const {  average } = useRtc();
+
+
+
+
+    // useEffect(() => {
+    //     if (!connection) return;
+    //     // Use a named handler so we can clean it up
+    //     const avgHandler = (id: string, createdBy: string, message: string, createdAt: string) => {
+    //         console.log("SignalList ReceivedAvarage event:", { id, createdBy, message, createdAt });
+    //         setAverageLocal(message);
+    //     };
+
+    //     // ensure no duplicate registration
+    //     connection.off("ReceivedAvarage", avgHandler);
+    //     connection.on("ReceivedAvarage", avgHandler);
+
+    //     return () => {
+    //         connection.off("ReceivedAvarage", avgHandler);
+    //     };
+    // }, [connection]);
+
+    // If context average updates, reflect in local UI too
+    useEffect(() => {
+        if (average) {
+            setAverageLocal(average)
+        } else {
+            setAverageLocal(null)
+        };
+    }, [assetId, average]);
 
     // Fetch function
     const fetchSignals = async (p = page, q = search, assetId: any) => {
@@ -98,6 +134,7 @@ export default function SignalList() {
     };
 
     useEffect(() => {
+        getAvarage(assetId)
         fetchSignals(1, search, assetId);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [assetId]);
@@ -160,6 +197,7 @@ export default function SignalList() {
                 toast.success(editing ? "Signal Updated Successfully" : "Signal Created Successfully");
                 setOpenCreate(false);
                 setFormErrors({});
+                getAvarage(assetId)
                 fetchSignals(editing ? page : 1, search, assetId);
             } else {
                 // API returned error, save in state
@@ -196,6 +234,7 @@ export default function SignalList() {
             const lastPage = Math.max(1, Math.ceil(nextTotal / pageSize));
             const newPage = page > lastPage ? lastPage : page;
             setConfirmDeleteId(null);
+            getAvarage(assetId)
             fetchSignals(newPage, search, assetId);
         } catch (err: any) {
             console.error(err);
@@ -211,10 +250,10 @@ export default function SignalList() {
         []
     );
 
-    let getAvarage = async (assetId : any) =>{
+    let getAvarage = async (assetId: any) => {
         let res = await BackgroundServiceApi.getAvarage(assetId)
-        if(!res?.success){
-            toast.error("Failed to get avarage, please after 2 sec.")
+        if (!res?.success) {
+            toast.error(res.error || "Failed to get avarage, please after 2 sec.")
         }
     }
 
@@ -250,6 +289,17 @@ export default function SignalList() {
 
 
                         <div className="flex items-center gap-1">
+                            <div
+                                className="px-4 py-2 rounded-xl 
+             bg-white/5 backdrop-blur-sm 
+             border border-white/10 
+              text-sm font-semibold 
+             shadow-inner shadow-primary/10 
+             flex items-center justify-center 
+             transition-all duration-300"
+                            >
+                                Average: {averageLocal ?? "Loading..."}
+                            </div>
                             <div className="relative flex-1 max-w-md">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
@@ -277,13 +327,9 @@ export default function SignalList() {
                                     <Plus className="mr-2 h-4 w-4" />
                                     New Signal
                                 </Button>
-                                <Button
-                                    onClick={()=>getAvarage(assetId)}
-                                    className="bg-gradient-to-r from-primary to-primary/90 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all duration-300"
-                                >
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Get Avarage
-                                </Button>
+
+
+
                             </div>
                         </div>
                     </div>
@@ -329,7 +375,7 @@ export default function SignalList() {
 
                                                 {/* Strength */}
                                                 <div className="text-sm text-muted-foreground line-clamp-1 col-span-2">
-                                                   <strong>Strength:-</strong> {s.strength}
+                                                    <strong>Strength:-</strong> {s.strength}
                                                 </div>
                                             </div>
 
@@ -433,8 +479,8 @@ export default function SignalList() {
 
                     <div className="space-y-4 py-2">
                         <div className="space-y-2">
-                            <Label className="text-sm font-medium">Signal Name</Label>
-                            <Input
+                            <Label className="text-sm font-medium">Signal Name <span className="text-red-500">*</span></Label>
+                            <Input 
                                 value={formName}
                                 onChange={(e) => setFormName(e.target.value)}
                                 maxLength={15}
@@ -455,7 +501,7 @@ export default function SignalList() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label className="text-sm font-medium">Description</Label>
+                            <Label className="text-sm font-medium">Description <span className="text-red-500">*</span></Label>
                             <Textarea
                                 value={formDesc}
                                 onChange={(e) => setFormDesc(e.target.value)}

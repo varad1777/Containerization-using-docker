@@ -69,8 +69,10 @@ export default function Index() {
         getAllAssets();
       } else {
         // API returned error, save in state
-        setFormErrors(data.error);
-        toast.error("Failed to save device");
+        setFormErrors(data?.error);
+        console.log(data?.error);
+        toast.error( (data?.error && typeof data.error === "object"
+  ? "Failed to save device" : data?.error)  || "Failed to save device");
       }
 
     } catch (err) {

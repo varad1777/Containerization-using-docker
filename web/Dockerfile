@@ -1,5 +1,5 @@
 # Stage 1: build
-FROM node:18-alpine AS build
+FROM node:20-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --silent
@@ -10,7 +10,7 @@ ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 RUN npm run build
 
 # Stage 2: serve with "serve"
-FROM node:18-alpine AS runtime
+FROM node:20-alpine AS runtime
 WORKDIR /app
 RUN npm i -g serve
 #serve is a lightweight static file server

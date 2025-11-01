@@ -61,6 +61,7 @@ const handleRequest = async (request: Promise<any>) => {
     return { success: true, data, error: null, statusCode: status };
   } catch (err: any) {
     console.log(err)
+    console.log(err.response.data)
     return {
       success: false,
       statusCode: err.response?.status || 500,
