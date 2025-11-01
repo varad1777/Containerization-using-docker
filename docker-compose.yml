@@ -1,11 +1,11 @@
-# version: "3.9"
+
 
 services:
   db:
     image: mcr.microsoft.com/mssql/server:2019-latest
     container_name: deviceproject_db
     environment:
-      - ACCEPT_EULA=Y
+      - ACCEPT_EULA=Y #just microsoft license acceptance
       - SA_PASSWORD=${MSSQL_SA_PASSWORD}
     ports:
       - "1433:1433"
@@ -26,7 +26,7 @@ services:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER:-guest}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-guest}
     ports:
-      - "5672:5672"     # AMQP
+      - "5672:5672"     # AMQP -> use by app to send / receive messages
       - "15672:15672"   # management UI
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
@@ -38,6 +38,7 @@ services:
       timeout: 5s
       retries: 6
     restart: unless-stopped
+    #restart - always, unless-stopped, on-failure
 
   backend:
     build:
@@ -112,3 +113,7 @@ volumes:
 networks:
   device-net:
     driver: bridge
+
+    #there are many druivers like bridge, host, overlay etc. Bridge is default one
+    #host - for using host's network stack
+    #overlay - for multi-host networking in swarm mode

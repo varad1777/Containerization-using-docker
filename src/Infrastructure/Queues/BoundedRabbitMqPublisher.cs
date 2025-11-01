@@ -57,10 +57,10 @@ namespace MyApp.Infrastructure.Queues
         {
             _channel.QueueDeclare(
                 queue: queueName,
-                durable: true,
-                exclusive: false,
-                autoDelete: false,
-                arguments: null
+                durable: true, // if true queue service will restart
+                exclusive: false, // queue will use only by one connection and deleted when that connection closes
+                autoDelete: false, // if true queue is deleted when last consumer unsubscribes
+                arguments: null // no extra option like max length n all 
             );
         }
 
@@ -72,23 +72,23 @@ namespace MyApp.Infrastructure.Queues
         {
             var targetQueue = routingKey ?? _requestsQueue;
 
-            // quick path: if max length is <= 0 treat as unbounded
+            // quick path: if max length is <= 0 treat as unbounded, we are not applying any limit
             if (_maxQueueLength <= 0)
             {
                 DoPublish(message, targetQueue);
                 return;
             }
 
-            var started = DateTime.UtcNow;
+            var started = DateTime.UtcNow; // start point for timeout measurement
             while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
                     // passive declare returns queue info without changing it
-                    var declareOk = _channel.QueueDeclarePassive(targetQueue);
-                    var messageCount = declareOk.MessageCount;
+                    var declareOk = _channel.QueueDeclarePassive(targetQueue); // getting the metadata of the queue
+                    var messageCount = declareOk.MessageCount; // number of messages in the queue
 
-                        _logger.LogInformation("-----------------------------------------------");
+                    _logger.LogInformation("-----------------------------------------------");
                     _logger.LogInformation($" (count={messageCount}).");
                         _logger.LogInformation("-----------------------------------------------");
 
@@ -108,7 +108,6 @@ namespace MyApp.Infrastructure.Queues
                         _logger.LogInformation("-----------------------------------------------");
                         _logger.LogWarning("Queue {Queue} is full (count={Count}, max={Max}). Timeout reached after {Timeout}s.", targetQueue, messageCount, _maxQueueLength, _publisherWaitTimeout.TotalSeconds);
                         throw new QueueFullException($"Queue {targetQueue} is full (count={messageCount}).");
-                        _logger.LogInformation("-----------------------------------------------");
                     }
 
                     // wait a short while before re-checking (small backoff)
@@ -139,7 +138,7 @@ namespace MyApp.Infrastructure.Queues
             var body = Encoding.UTF8.GetBytes(json);
 
             var props = _channel.CreateBasicProperties();
-            props.Persistent = true;
+            props.Persistent = true; // message will be persisted to disk, so when msg broker restarts it is not lost
 
             _channel.BasicPublish(
                 exchange: "",
@@ -151,6 +150,9 @@ namespace MyApp.Infrastructure.Queues
             _logger.LogInformation("📤 Message published to {RoutingKey} (size={Bytes})", targetQueue, body.Length);
         }
 
+
+        // Dispose pattern to clean up RabbitMQ connection and channel
+        // if DI container closed or object is disposed
         public void Dispose()
         {
             _channel?.Close();

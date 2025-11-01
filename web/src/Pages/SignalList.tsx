@@ -212,7 +212,10 @@ export default function SignalList() {
     );
 
     let getAvarage = async (assetId : any) =>{
-        await BackgroundServiceApi.getAvarage(assetId)
+        let res = await BackgroundServiceApi.getAvarage(assetId)
+        if(!res?.success){
+            toast.error("Failed to get avarage, please after 2 sec.")
+        }
     }
 
     useEffect(() => {

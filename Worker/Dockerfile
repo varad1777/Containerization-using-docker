@@ -9,6 +9,8 @@ RUN dotnet restore "./MyApp.AverageCalculator.csproj"
 # copy everything and build
 COPY . .
 RUN dotnet publish "MyApp.AverageCalculator.csproj" -c Release -o /app/publish /p:PublishTrimmed=false
+#PublishTrimmed=false to avoid issues with reflection in some libraries
+# also to reduce size of final image
 
 # Stage 2 - runtime
 FROM mcr.microsoft.com/dotnet/runtime:9.0 AS runtime
