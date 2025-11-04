@@ -44,7 +44,7 @@ services:
     build:
       context: ./src
       dockerfile: API/Dockerfile
-    image: deviceproject-backend:dev
+    # image: deviceproject-backend:dev
     container_name: deviceproject_backend
     depends_on:
       - db
@@ -95,7 +95,7 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile
-    image: deviceproject-frontend:dev
+    # image: deviceproject-frontend:dev
     container_name: deviceproject_frontend
     depends_on:
       - backend

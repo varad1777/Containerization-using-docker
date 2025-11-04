@@ -1,9 +1,0 @@
-<Project>
-  <ItemGroup>
-    <!-- Prevent dotnet-watch from scanning build output folders which can lead to duplicate entries or recursion when projects outputs are present in the source tree -->
-    <Watch Remove="**/bin/**" />
-    <Watch Remove="**/obj/**" />
-    <Watch Remove="**/publish/**" />
-    <Watch Remove="**/node_modules/**" />
-  </ItemGroup>
-</Project>

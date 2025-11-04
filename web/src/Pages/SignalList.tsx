@@ -70,6 +70,8 @@ export default function SignalList() {
 
     const {  average } = useRtc();
 
+    console.log(average)
+
 
 
 
@@ -300,13 +302,14 @@ export default function SignalList() {
                             >
                                 Average: {averageLocal ?? "Loading..."}
                             </div>
-                            <div className="relative flex-1 max-w-md">
+                            <div className="relative flex-1 w-full">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <Input
+                                <Input 
                                     placeholder="Search signals by name or description..."
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
-                                    className="pl-10 border-border/50 bg-background/50 focus:border-primary/50 transition-colors"
+                                    className="pl-10 border-border/50 w-[20rem]
+                               bg-background/50 focus:border-primary/50 transition-colors"
                                 />
                             </div>
 
